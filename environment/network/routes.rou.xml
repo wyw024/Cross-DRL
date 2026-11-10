@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<routes>
+    <vType id="car" accel="2.6" decel="4.5" sigma="0.5" length="5" minGap="2.5" maxSpeed="13.89"/>
+    <route id="n_s" edges="north_in south_out"/>
+    <route id="n_e" edges="north_in east_out"/>
+    <route id="n_w" edges="north_in west_out"/>
+    <route id="s_n" edges="south_in north_out"/>
+    <route id="s_e" edges="south_in east_out"/>
+    <route id="s_w" edges="south_in west_out"/>
+    <route id="e_w" edges="east_in west_out"/>
+    <route id="e_n" edges="east_in north_out"/>
+    <route id="e_s" edges="east_in south_out"/>
+    <route id="w_e" edges="west_in east_out"/>
+    <route id="w_n" edges="west_in north_out"/>
+    <route id="w_s" edges="west_in south_out"/>
+
+    <flow id="north_straight" type="car" route="n_s" begin="0" end="900" vehsPerHour="500" departLane="best" departSpeed="max"/>
+    <flow id="north_left" type="car" route="n_e" begin="0" end="900" vehsPerHour="100" departLane="best" departSpeed="max"/>
+    <flow id="north_right" type="car" route="n_w" begin="0" end="900" vehsPerHour="100" departLane="best" departSpeed="max"/>
+    <flow id="south_straight" type="car" route="s_n" begin="0" end="900" vehsPerHour="500" departLane="best" departSpeed="max"/>
+    <flow id="south_left" type="car" route="s_w" begin="0" end="900" vehsPerHour="100" departLane="best" departSpeed="max"/>
+    <flow id="south_right" type="car" route="s_e" begin="0" end="900" vehsPerHour="100" departLane="best" departSpeed="max"/>
+    <flow id="east_straight" type="car" route="e_w" begin="0" end="900" vehsPerHour="350" departLane="best" departSpeed="max"/>
+    <flow id="east_left" type="car" route="e_s" begin="0" end="900" vehsPerHour="80" departLane="best" departSpeed="max"/>
+    <flow id="east_right" type="car" route="e_n" begin="0" end="900" vehsPerHour="80" departLane="best" departSpeed="max"/>
+    <flow id="west_straight" type="car" route="w_e" begin="0" end="900" vehsPerHour="350" departLane="best" departSpeed="max"/>
+    <flow id="west_left" type="car" route="w_n" begin="0" end="900" vehsPerHour="80" departLane="best" departSpeed="max"/>
+    <flow id="west_right" type="car" route="w_s" begin="0" end="900" vehsPerHour="80" departLane="best" departSpeed="max"/>
+</routes>

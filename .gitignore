@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+results/models/*
+results/logs/*
+results/figures/*
+results/csv/*
+!results/**/.gitkeep
