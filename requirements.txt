@@ -1,7 +1,18 @@
-numpy
-gymnasium
-torch
-pandas
-matplotlib
-tensorboard
-traci
+# ==========================================
+# SUMO Reinforcement Learning Project
+# Python: 3.10.22
+# SUMO: 1.28.0
+# ==========================================
+
+# SUMO Python interfaces
+traci==1.28.0
+sumolib==1.28.0
+
+# Data processing
+numpy==1.26.4
+pandas==2.2.3
+
+# Reinforcement Learning Environment
+gymnasium==1.4.0
+
+opencv-python==4.11.0.86
