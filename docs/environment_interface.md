@@ -1,9 +1,11 @@
-# SUMO 主车环境接口说明（供算法同学对接）
+# SUMO 主车环境接口（对接草案）
 
-这是当前环境的接口草案，尚未与算法同学共同确认。运行 `from environment.sumo_env import IntersectionEnv`，构造 `IntersectionEnv(traffic_density='medium', max_steps=300)`。
+当前环境提供 Gymnasium 接口，供规则控制、Q-learning 和 DQN 等算法调用。请组员共同确认后再将接口作为稳定版本。
 
 ```python
-env = IntersectionEnv(traffic_density='medium')
+from environment.sumo_env import IntersectionEnv
+
+env = IntersectionEnv(traffic_density='medium', ego_route='left')
 try:
     obs, info = env.reset(seed=42)
     obs, reward, terminated, truncated, info = env.step(3)
@@ -11,21 +13,32 @@ finally:
     env.close()
 ```
 
-每步 1 秒；背景车辆由 SUMO 管理，主车从北向南直行，禁止主车换道；默认 SUMO speedMode 安全限制保持开启。`reset(options={'traffic_density':'high'})` 可覆盖该回合密度。
+## 主车方向与动作
 
-| 状态顺序 | 含义及范围 |
-| --- | --- |
-| 0 | 主车速度 / 13.89 m/s，裁剪到 [0,1] |
-| 1 | 到停止线距离 / 250 m，裁剪到 [0,1]；通过停止线后为 0 |
-| 2 | 前方信号：红 0，黄 0.5，绿或没有后续信号 1 |
-| 3 | 与前车的 SUMO 间距 / 100 m，裁剪到 [0,1]；无前车为 1 |
-| 4 | 前车速度 / 13.89 m/s；无前车时为主车速度 |
-| 5 | (前车速度 − 主车速度) / 13.89，裁剪到 [-1,1] |
+主车从北侧进入。`ego_route` 可设为 `straight`（直行，南侧出口）、`left`（左转，东侧出口）或 `right`（右转，西侧出口），默认直行。每回合可在 `env.reset(options={'ego_route': 'right', 'density': 'low'})` 更换路线和密度；`info` 提供 `ego_route`、`route_id`、`exit_edge`。
 
-动作 0–4 对应请求加速度 -3、-1、0、1、2 m/s²；SUMO 安全规则与速度上下界可能使实际加速度不同。`info` 有 `requested_acceleration`、`actual_acceleration_m_s2`、未缩放速度、信号、前车间距等数据。
+路线在回合开始前确定，SUMO 根据路线完成转向；智能体每步仍只选择加速度，**尚不支持在路口自主选择方向**。当前七维状态中没有目标方向；训练中混合路线时应与算法同学商定如何提供目标信息，不能假定只靠当前状态就能区分转向意图。
 
-奖励当前为 `0.1*前进米数 - 0.05 - 0.1*急减速 - 100*碰撞 - 100*确认闯红灯 + 50*确认通过`。切灯边界不确定时不计红灯惩罚或成功奖励。这个奖励是初始参数；主车在当步消失时最后一步前进距离目前不能准确得到，应在算法实验前评估其影响。
+动作编号 0–4 对应请求加速度 -3、-1、0、1、2 m/s²，时间步长 1 秒。SUMO 默认跟驰和信号安全约束会影响实际加速度。
 
-`terminated`：成功驶入南侧出口、确认红灯违规、碰撞、传送或异常消失；`truncated`：达到 `max_steps`。通过后主车仍在出口道路，不等同于驶完全程。`info` 包含 `passed_intersection`、`red_light_violation`（布尔值或边界不确定时为 None）、`signal_boundary_uncertain`、`collision`、`teleported`。信号在越线的 1 秒步内切换时无法准确判断先后，不能将 None 当作未违规。需双方确认状态语义、奖励、终止条件及安全干预统计，后续再冻结接口。
+## 七维观测
 
-`evaluation/safety_log.py` 记录请求和实际加速度，默认差值绝对值大于 0.5 m/s² 标记差异，并标注附近红黄灯、前车、低速和限速线索。这些只是用于人工分析的线索；差异不是安全干预次数，多个因素可以同时存在。
+| 下标 | 内容 | 归一化范围 |
+| --- | --- | --- |
+| 0 | 自车速度 / 13.89 m/s | 0–1 |
+| 1 | 距入口停止线距离 / 250 m；进入路口后为 0 | 0–1 |
+| 2 | 当前路线对应信号：红 0、黄 0.5、绿或没有后续信号 1 | 0–1 |
+| 3 | 前车距离 / 100 m；无前车时为 1 | 0–1 |
+| 4 | 前车速度 / 13.89 m/s；无前车时为 1 | 0–1 |
+| 5 | (自车速度 − 前车速度) / 13.89 m/s，裁剪 | −1–1 |
+| 6 | `light_present`：当前代码中表示是否有前车 | 0 或 1 |
+
+第 6 项的名称容易误解，但为兼容现有算法暂不改名。背景密度 `low`、`medium`、`high` 对应原流量的 0.5、1、1.5 倍；初始信号相位默认随机化。
+
+## 奖励与结束
+
+当前奖励包含每步前进奖励 `0.1 × 进展米数`、时间惩罚 `-0.05`、实际加速度不大于 -3 时的 `-0.1`、碰撞和确认闯红灯各 `-100`、成功通过 `+50`。这些值是初步设计，不代表已完成调优。
+
+主车进入所选出口、到达、碰撞、传送、确认红灯违规或异常消失时 `terminated=True`；达到最大步数时 `truncated=True`。`info` 包含 `passed_intersection`、`collision`、`teleported`、`red_light_violation` 等字段。成功驶入出口不等于驶完全程。
+
+安全保护介入次数目前尚未实现。红灯判断基于越线前缓存的信号；一秒仿真步内切灯的先后无法精确还原，正式安全评价前需补充边界测试并与组员确认。`evaluation/safety_log.py` 的加速度差异仅是排查线索，不能直接等同于安全介入。

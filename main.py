@@ -5,8 +5,9 @@ from environment.sumo_env import IntersectionEnv
 parser = argparse.ArgumentParser(description='SUMO 主车控制演示')
 parser.add_argument('--gui', action='store_true', help='使用 SUMO-GUI')
 parser.add_argument('--density', choices=['low','medium','high'], default='medium', help='背景交通密度')
+parser.add_argument('--route', choices=['straight','left','right'], default='straight', help='主车预设路线')
 args = parser.parse_args()
-env = IntersectionEnv(render_mode='human' if args.gui else None, traffic_density=args.density)
+env = IntersectionEnv(render_mode='human' if args.gui else None, traffic_density=args.density, ego_route=args.route)
 try:
     observation, info = env.reset(seed=42)
     print('初始状态:', observation, info)
