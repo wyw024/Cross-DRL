@@ -302,7 +302,7 @@ class IntersectionEnv(gym.Env):
     # 4. SUMO 启动与关闭
     # ========================================================
 
-    def _start_sumo(self):
+    def _start_sumo(self, sumo_seed):
 
         if self.connection is not None:
             self._close_sumo()
@@ -311,6 +311,7 @@ class IntersectionEnv(gym.Env):
             self.sumo_binary,
             "-c", SUMO_CONFIG,
             "--step-length", str(STEP_LENGTH),
+            "--seed", str(sumo_seed),
             "--scale",
             str(DENSITY_SCALE[self.traffic_density]),
             "--no-step-log", "true",
@@ -1063,7 +1064,10 @@ class IntersectionEnv(gym.Env):
         # 启动 SUMO
         # ----------------------------------------------------
 
-        self._start_sumo()
+        # 每次回合从 Gymnasium 随机生成器产生 SUMO 种子：显式 seed 可复现，
+        # reset(seed=None) 延续随机序列，避免每回合重复同一背景车流。
+        self.sumo_seed = int(self.np_random.integers(0, 2**31 - 1))
+        self._start_sumo(self.sumo_seed)
 
         # ----------------------------------------------------
         # 随机初始信号灯相位
@@ -1235,6 +1239,8 @@ class IntersectionEnv(gym.Env):
             "exit_edge": self.exit_edge,
 
             "traffic_density": self.traffic_density,
+
+            "sumo_seed": self.sumo_seed,
 
             "traffic_scale": DENSITY_SCALE[
                 self.traffic_density
@@ -1638,6 +1644,8 @@ class IntersectionEnv(gym.Env):
             "step": self.step_count,
 
             "traffic_density": self.traffic_density,
+
+            "sumo_seed": self.sumo_seed,
 
             "traffic_scale": DENSITY_SCALE[
                 self.traffic_density
