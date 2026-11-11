@@ -5,3 +5,5 @@ results/logs/*
 results/figures/*
 results/csv/*
 !results/**/.gitkeep
+results/dqn/
+results/double_dqn/
