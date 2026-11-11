@@ -3,10 +3,10 @@
 训练Q-learning智能体。
 
 在项目根目录运行：
-python -m scripts.train_q_learning
+python -m training.train_q_learning
 
 例如：
-python -m scripts.train_q_learning --episodes 500 --density medium
+python -m training.train_q_learning --episodes 500 --density medium
 """
 
 import argparse
