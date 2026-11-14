@@ -1,18 +1,11 @@
-# ==========================================
-# SUMO Reinforcement Learning Project
-# Python: 3.10.22
-# SUMO: 1.28.0
-# ==========================================
-
-# SUMO Python interfaces
-traci==1.28.0
-sumolib==1.28.0
-
-# Data processing
 numpy==1.26.4
 pandas==2.2.3
-
-# Reinforcement Learning Environment
+matplotlib==3.10.8
 gymnasium==1.4.0
+torch==2.7.1
 
+# SUMO Python interfaces (SUMO itself must be installed separately)
+traci==1.28.0
+sumolib==1.28.0
 opencv-python==4.11.0.86
+scipy==1.15.3

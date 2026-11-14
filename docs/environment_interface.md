@@ -1,31 +1,107 @@
-# SUMO 主车环境接口说明（供算法同学对接）
+# SUMO 主车环境接口说明
 
-这是当前环境的接口草案，尚未与算法同学共同确认。运行 `from environment.sumo_env import IntersectionEnv`，构造 `IntersectionEnv(traffic_density='medium', max_steps=300)`。
+## 1. 环境概述
+
+`environment/sumo_env.py` 将 SUMO / TraCI 封装为 Gymnasium 环境 `IntersectionEnv`。环境模拟四向信号交叉口、随机背景交通和一辆受控主车。主车从北侧入口驶入。
 
 ```python
-env = IntersectionEnv(traffic_density='medium')
+from environment.sumo_env import IntersectionEnv
+
+env = IntersectionEnv(traffic_density="medium", ego_route="straight")
 try:
-    obs, info = env.reset(seed=42)
-    obs, reward, terminated, truncated, info = env.step(3)
+    observation, info = env.reset(seed=42)
+    observation, reward, terminated, truncated, info = env.step(3)
 finally:
     env.close()
 ```
 
-每步 1 秒；背景车辆由 SUMO 管理，主车从北向南直行，禁止主车换道；默认 SUMO speedMode 安全限制保持开启。`reset(options={'traffic_density':'high'})` 可覆盖该回合密度。
+## 2. 路线与动作
 
-| 状态顺序 | 含义及范围 |
-| --- | --- |
-| 0 | 主车速度 / 13.89 m/s，裁剪到 [0,1] |
-| 1 | 到停止线距离 / 250 m，裁剪到 [0,1]；通过停止线后为 0 |
-| 2 | 前方信号：红 0，黄 0.5，绿或没有后续信号 1 |
-| 3 | 与前车的 SUMO 间距 / 100 m，裁剪到 [0,1]；无前车为 1 |
-| 4 | 前车速度 / 13.89 m/s；无前车时为主车速度 |
-| 5 | (前车速度 − 主车速度) / 13.89，裁剪到 [-1,1] |
+`ego_route` 支持：
 
-动作 0–4 对应请求加速度 -3、-1、0、1、2 m/s²；SUMO 安全规则与速度上下界可能使实际加速度不同。`info` 有 `requested_acceleration`、`actual_acceleration_m_s2`、未缩放速度、信号、前车间距等数据。
+| 值 | 含义 | 出口 |
+|---|---|---|
+| `straight` | 直行 | `south_out` |
+| `left` | 左转 | `east_out` |
+| `right` | 右转 | `west_out` |
 
-奖励当前为 `0.1*前进米数 - 0.05 - 0.1*急减速 - 100*碰撞 - 100*确认闯红灯 + 50*确认通过`。切灯边界不确定时不计红灯惩罚或成功奖励。这个奖励是初始参数；主车在当步消失时最后一步前进距离目前不能准确得到，应在算法实验前评估其影响。
+路线在回合开始时确定。可以通过 `reset(options=...)` 设置：
 
-`terminated`：成功驶入南侧出口、确认红灯违规、碰撞、传送或异常消失；`truncated`：达到 `max_steps`。通过后主车仍在出口道路，不等同于驶完全程。`info` 包含 `passed_intersection`、`red_light_violation`（布尔值或边界不确定时为 None）、`signal_boundary_uncertain`、`collision`、`teleported`。信号在越线的 1 秒步内切换时无法准确判断先后，不能将 None 当作未违规。需双方确认状态语义、奖励、终止条件及安全干预统计，后续再冻结接口。
+```python
+observation, info = env.reset(
+    seed=42,
+    options={"ego_route": "left", "density": "high"}
+)
+```
 
-`evaluation/safety_log.py` 记录请求和实际加速度，默认差值绝对值大于 0.5 m/s² 标记差异，并标注附近红黄灯、前车、低速和限速线索。这些只是用于人工分析的线索；差异不是安全干预次数，多个因素可以同时存在。
+当前算法动作只控制纵向加速度，不选择路线。五个离散动作：
+
+| 动作 | 请求加速度 |
+|---:|---:|
+| 0 | -3 m/s² |
+| 1 | -1 m/s² |
+| 2 | 0 m/s² |
+| 3 | +1 m/s² |
+| 4 | +2 m/s² |
+
+时间步长为 1 秒。SUMO 跟驰、信号和车辆动力学约束可能使实际加速度不同于请求值。
+
+## 3. 七维观测
+
+| 下标 | 内容 | 归一化或取值 |
+|---:|---|---|
+| 0 | 自车速度 | 速度 / 13.89 m/s，范围 0–1 |
+| 1 | 到入口停止线距离；进入路口后为 0 | 距离 / 250 m，范围 0–1 |
+| 2 | 当前路线对应信号 | 红 0、黄 0.5、绿或无后续信号 1 |
+| 3 | 同车道前车距离；无前车时为 1 | 距离 / 100 m，范围 0–1 |
+| 4 | 前车速度；无前车时为 1 | 速度 / 13.89 m/s，范围 0–1 |
+| 5 | 自车与前车速度差 | (自车速度 - 前车速度) / 13.89，裁剪至 -1–1 |
+| 6 | 前车存在标记 | 0 或 1 |
+
+**特别说明：** 代码中的第 6 维变量名 `light_present` 容易让人误以为它表示信号灯是否存在；当前实际语义是是否检测到前车。为兼容已训练模型，本版本不更改观测维度、顺序和数值定义。不要在不重新训练和重新评估的情况下重命名或改变该维度语义。
+
+## 4. 交通密度与随机种子
+
+背景交通密度对应基准发车需求的倍率：
+
+| 密度 | 倍率 |
+|---|---:|
+| `low` | 0.5 |
+| `medium` | 1.0 |
+| `high` | 1.5 |
+
+背景车从四个入口随机发车，并按路线分布随机选择直行、左转或右转。实际进入路网的数量还会受到插入条件和路口运行状态影响。
+
+`reset(seed=42)` 初始化该环境回合的随机序列，并生成实际传入 SUMO 的 `sumo_seed`。相同环境配置、相同 seed 应复现相同背景车流和初始信号相位。连续调用不传 seed 的 `reset()` 会延续随机序列。不同算法对比时应使用相同的测试 seed，并核对 CSV 中的 `sumo_seed`。
+
+## 5. 奖励
+
+当前奖励为初步实验设计，主要包含：
+
+- 按前进距离给予正奖励；
+- 每步时间惩罚；
+- 急减速惩罚；
+- 确认碰撞和确认闯红灯的较大惩罚；
+- 成功驶入指定出口的终点奖励。
+
+具体系数以 `environment/sumo_env.py` 当前实现为准。改变奖励系数会改变训练目标，应重新训练相关算法，不能直接将新旧奖励下的模型作为严格同条件结果比较。
+
+## 6. 结束条件与 info
+
+Gymnasium 的 `step()` 返回：
+
+```python
+observation, reward, terminated, truncated, info
+```
+
+- `terminated=True`：发生环境定义的终止事件，例如主车通过目标出口、碰撞、传送、确认闯红灯或异常消失。
+- `truncated=True`：达到最大步数上限。
+- `info`：包含路线、出口、速度、信号状态、通过标记、碰撞、传送、红灯违规和实际加速度等辅助字段。
+
+`passed_intersection` 表示环境检测到主车到达指定出口，不应简单理解为完成了完整道路行驶任务。
+
+## 7. 安全指标解释
+
+评估脚本统计碰撞、确认闯红灯、传送、超时、停车步数、急刹步数和最小前车间距。最小前车间距是诊断指标；特别小的数值需要结合 SUMO 的间距定义、车道、车辆长度和具体轨迹复核。它不能单独证明发生碰撞，也不能证明安全距离充足。
+
+红灯边界判断依赖环境记录的信号状态；在离散仿真步内发生信号切换时可能存在不确定性。`signal_uncertain` 会记录相关情况。正式报告应同时报告该指标并说明判定限制。

@@ -14,16 +14,15 @@
     <route id="w_n" edges="west_in north_out"/>
     <route id="w_s" edges="west_in south_out"/>
 
-    <flow id="north_straight" type="car" route="n_s" begin="0" end="900" vehsPerHour="500" departLane="best" departSpeed="max"/>
-    <flow id="north_left" type="car" route="n_e" begin="0" end="900" vehsPerHour="100" departLane="best" departSpeed="max"/>
-    <flow id="north_right" type="car" route="n_w" begin="0" end="900" vehsPerHour="100" departLane="best" departSpeed="max"/>
-    <flow id="south_straight" type="car" route="s_n" begin="0" end="900" vehsPerHour="500" departLane="best" departSpeed="max"/>
-    <flow id="south_left" type="car" route="s_w" begin="0" end="900" vehsPerHour="100" departLane="best" departSpeed="max"/>
-    <flow id="south_right" type="car" route="s_e" begin="0" end="900" vehsPerHour="100" departLane="best" departSpeed="max"/>
-    <flow id="east_straight" type="car" route="e_w" begin="0" end="900" vehsPerHour="350" departLane="best" departSpeed="max"/>
-    <flow id="east_left" type="car" route="e_s" begin="0" end="900" vehsPerHour="80" departLane="best" departSpeed="max"/>
-    <flow id="east_right" type="car" route="e_n" begin="0" end="900" vehsPerHour="80" departLane="best" departSpeed="max"/>
-    <flow id="west_straight" type="car" route="w_e" begin="0" end="900" vehsPerHour="350" departLane="best" departSpeed="max"/>
-    <flow id="west_left" type="car" route="w_n" begin="0" end="900" vehsPerHour="80" departLane="best" departSpeed="max"/>
-    <flow id="west_right" type="car" route="w_s" begin="0" end="900" vehsPerHour="80" departLane="best" departSpeed="max"/>
+    <!-- 每个入口随机选方向：直行 60%，左转 20%，右转 20%。 -->
+    <routeDistribution id="north_choices" routes="n_s n_e n_w" probabilities="0.6 0.2 0.2"/>
+    <routeDistribution id="south_choices" routes="s_n s_w s_e" probabilities="0.6 0.2 0.2"/>
+    <routeDistribution id="east_choices" routes="e_w e_s e_n" probabilities="0.6 0.2 0.2"/>
+    <routeDistribution id="west_choices" routes="w_e w_n w_s" probabilities="0.6 0.2 0.2"/>
+
+    <!-- 每秒独立生成概率约为原有每小时总流量除以 3600。 -->
+    <flow id="north" type="car" route="north_choices" begin="0" end="900" probability="0.1944444444" departLane="best" departSpeed="max"/>
+    <flow id="south" type="car" route="south_choices" begin="0" end="900" probability="0.1944444444" departLane="best" departSpeed="max"/>
+    <flow id="east" type="car" route="east_choices" begin="0" end="900" probability="0.1416666667" departLane="best" departSpeed="max"/>
+    <flow id="west" type="car" route="west_choices" begin="0" end="900" probability="0.1416666667" departLane="best" departSpeed="max"/>
 </routes>

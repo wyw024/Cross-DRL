@@ -6,7 +6,7 @@
 python -m training.train_q_learning
 
 例如：
-python -m training.train_q_learning --episodes 500 --density medium
+python -m training.train_q_learning --episodes 300 --density medium
 """
 
 import argparse

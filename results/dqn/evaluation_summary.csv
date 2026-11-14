@@ -1,0 +1,4 @@
+﻿algorithm,density,ego_route,episodes,mean_reward,std_reward,mean_steps,safe_pass_rate,safe_pass_ci95_low,safe_pass_ci95_high,collision_rate,collision_ci95_low,collision_ci95_high,red_violation_rate,red_violation_ci95_low,red_violation_ci95_high,timeout_rate,teleport_rate,signal_uncertain_rate,mean_pass_time_s,pass_time_episodes,mean_speed_m_s,mean_stopped_steps,mean_hard_brake_steps,min_leader_gap_m,action_0_ratio,action_1_ratio,action_2_ratio,action_3_ratio,action_4_ratio
+dqn,low,left,50,71.166,1.116,41.76,1.0,0.9286,1.0,0.0,0.0,0.0714,0.0,0.0,0.0714,0.0,0.0,0.0,41.76,50,7.7444,15.1,1.96,1.705,0.0017,0.0058,0.1914,0.6068,0.1943
+dqn,medium,left,50,70.905,1.2896,46.3,1.0,0.9286,1.0,0.0,0.0,0.0714,0.0,0.0,0.0714,0.0,0.0,0.0,46.3,50,7.151,19.2,2.3,0.277,0.0103,0.0224,0.1867,0.5321,0.2485
+dqn,high,left,50,70.739,1.495,49.42,1.0,0.9286,1.0,0.0,0.0,0.0714,0.0,0.0,0.0714,0.0,0.0,0.0,49.42,50,6.9528,22.36,2.4,0.088,0.0274,0.0462,0.1898,0.4774,0.2592
