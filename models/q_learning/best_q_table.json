@@ -1,0 +1,19 @@
+{
+    "algorithm": "Q-learning",
+    "learning_rate": 0.1,
+    "gamma": 0.99,
+    "epsilon": 0.29285644267656924,
+    "epsilon_min": 0.05,
+    "epsilon_decay": 0.995,
+    "action_count": 5,
+    "state_shape": [
+        5,
+        6,
+        3,
+        5,
+        5,
+        5,
+        2
+    ],
+    "update_count": 15846
+}

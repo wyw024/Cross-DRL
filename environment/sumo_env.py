@@ -22,7 +22,7 @@ SUMO Reinforcement Learning Environment
 3. gap                 前车距离 / 100m
 4. leader_speed        前车速度 / 最高速度
 5. relative_speed      相对速度 / 最高速度
-6. light_present       是否存在前车
+6. leader_present       是否存在前车（字段名沿用现有接口）
 
 动作空间：
 0: -3.0 m/s²
@@ -33,7 +33,7 @@ SUMO Reinforcement Learning Environment
 
 注意：
 - 仿真步长默认为 1 秒。
-- 主车固定从 north_in 进入，行驶路线为 n_s。
+- 主车从 north_in 进入，可预设直行、左转或右转；动作仍控制纵向加速度。
 - 信号灯 TLS ID 默认为 junction。
 """
 
@@ -86,8 +86,12 @@ TLS_ID = "junction"
 # 主车 ID
 EGO_ID = "ego"
 
-# 主车路线 ID
-EGO_ROUTE_ID = "n_s"
+# 主车路线 ID 与目标出口（从北侧驶入）
+EGO_ROUTES = {
+    "straight": ("n_s", "south_out"),
+    "left": ("n_e", "east_out"),
+    "right": ("n_w", "west_out"),
+}
 
 # 主车车辆类型
 EGO_TYPE_ID = "car"
@@ -154,7 +158,8 @@ class IntersectionEnv(gym.Env):
         traffic_density="medium",
         gui_delay_ms=500,
         gui_quit_on_end=False,
-        randomize_signal_phase=True
+        randomize_signal_phase=True,
+        ego_route="straight"
     ):
 
         super().__init__()
@@ -167,6 +172,12 @@ class IntersectionEnv(gym.Env):
         self.max_steps = int(max_steps)
 
         self.traffic_density = traffic_density
+
+        if ego_route not in EGO_ROUTES:
+            raise ValueError(f"ego_route 必须是 {list(EGO_ROUTES)}")
+        self.default_ego_route = ego_route
+        self.ego_route = ego_route
+        self.route_id, self.exit_edge = EGO_ROUTES[ego_route]
 
         self.gui_delay_ms = int(gui_delay_ms)
 
@@ -291,7 +302,7 @@ class IntersectionEnv(gym.Env):
     # 4. SUMO 启动与关闭
     # ========================================================
 
-    def _start_sumo(self):
+    def _start_sumo(self, sumo_seed):
 
         if self.connection is not None:
             self._close_sumo()
@@ -300,6 +311,7 @@ class IntersectionEnv(gym.Env):
             self.sumo_binary,
             "-c", SUMO_CONFIG,
             "--step-length", str(STEP_LENGTH),
+            "--seed", str(sumo_seed),
             "--scale",
             str(DENSITY_SCALE[self.traffic_density]),
             "--no-step-log", "true",
@@ -654,7 +666,7 @@ class IntersectionEnv(gym.Env):
         """
         获取主车到停止线的剩余距离。
 
-        主车从 north_in 进入，目标方向为 south_out。
+        主车从 north_in 进入，目标出口由 ego_route 决定。
         """
 
         try:
@@ -693,7 +705,7 @@ class IntersectionEnv(gym.Env):
                     )
                 )
 
-            if road_id == "south_out":
+            if road_id == self.exit_edge:
 
                 return 0.0
 
@@ -802,7 +814,7 @@ class IntersectionEnv(gym.Env):
         signal = self._get_signal_value()
 
         # 前车信息
-        gap, leader_speed, light_present = (
+        gap, leader_speed, leader_present = (
             self._get_leader_info()
         )
 
@@ -824,7 +836,7 @@ class IntersectionEnv(gym.Env):
 
                 relative_speed / MAX_SPEED,
 
-                light_present
+                leader_present
             ],
             dtype=np.float32
         )
@@ -902,7 +914,7 @@ class IntersectionEnv(gym.Env):
             before_road == "north_in"
             and (
                 after_road.startswith(":")
-                or after_road == "south_out"
+                or after_road == self.exit_edge
             )
         )
 
@@ -927,11 +939,14 @@ class IntersectionEnv(gym.Env):
             None
         )
 
+        # 修补：越线后 getNextTLS 已无后续信号灯，改为按缓存的 (tls, link) 直接读取该灯当前字符。
         after_state = None
-
-        if before_tls is not None:
-
-            after_state = before_tls[2]
+        link = getattr(self, "_cached_tls_link", None)
+        if link is not None:
+            try:
+                after_state = self.connection.trafficlight.getRedYellowGreenState(link[0])[link[1]]
+            except traci.TraCIException:
+                after_state = None
 
         self.signal_before_crossing = before_state
 
@@ -945,15 +960,14 @@ class IntersectionEnv(gym.Env):
             after_state
         ) if after_state is not None else "unknown"
 
-        # 只有越线前状态明确为红灯时，才判定闯红灯。
-        if before_class == "red":
+        # 修补：越线前后均为红灯才判定闯红灯；该步内由红变绿属于边界情形，只记为不确定。
+        if before_class == "red" and after_class == "red":
 
             self.crossing_red_violation = True
 
             self.red_light_violation = True
 
-        # 状态不确定单独记录，不直接判定闯红灯。
-        elif before_class == "unknown":
+        elif before_class == "unknown" or (before_class == "red" and after_class != "red"):
 
             self.crossing_signal_uncertain = True
 
@@ -974,6 +988,12 @@ class IntersectionEnv(gym.Env):
         super().reset(seed=seed)
 
         options = options or {}
+
+        route = options.get("ego_route", self.default_ego_route)
+        if route not in EGO_ROUTES:
+            raise ValueError(f"ego_route 必须是 {list(EGO_ROUTES)}")
+        self.ego_route = route
+        self.route_id, self.exit_edge = EGO_ROUTES[route]
 
         # ----------------------------------------------------
         # 更新交通密度
@@ -1046,7 +1066,10 @@ class IntersectionEnv(gym.Env):
         # 启动 SUMO
         # ----------------------------------------------------
 
-        self._start_sumo()
+        # 每次回合从 Gymnasium 随机生成器产生 SUMO 种子：显式 seed 可复现，
+        # reset(seed=None) 延续随机序列，避免每回合重复同一背景车流。
+        self.sumo_seed = int(self.np_random.integers(0, 2**31 - 1))
+        self._start_sumo(self.sumo_seed)
 
         # ----------------------------------------------------
         # 随机初始信号灯相位
@@ -1071,7 +1094,7 @@ class IntersectionEnv(gym.Env):
         # 检查主车所需道路是否存在
         required_edges = [
             "north_in",
-            "south_out"
+            self.exit_edge
         ]
 
         missing_edges = [
@@ -1089,18 +1112,18 @@ class IntersectionEnv(gym.Env):
             )
 
         # 如果路线不存在，才动态添加
-        if EGO_ROUTE_ID not in existing_routes:
+        if self.route_id not in existing_routes:
 
             try:
 
                 self.connection.route.add(
-                    EGO_ROUTE_ID,
+                    self.route_id,
                     required_edges
                 )
 
                 print(
                     f"[SUMO INFO] "
-                    f"成功创建主车路线：{EGO_ROUTE_ID}"
+                    f"成功创建主车路线：{self.route_id}"
                 )
 
             except traci.TraCIException as error:
@@ -1108,15 +1131,15 @@ class IntersectionEnv(gym.Env):
                 self._close_sumo()
 
                 raise RuntimeError(
-                    f"创建主车路线失败：{EGO_ROUTE_ID}。"
-                    f"请检查 north_in 和 south_out 是否连通。"
+                    f"创建主车路线失败：{self.route_id}。"
+                    f"请检查 north_in 和 {self.exit_edge} 是否连通。"
                 ) from error
 
         else:
 
             print(
                 f"[SUMO INFO] "
-                f"使用已有主车路线：{EGO_ROUTE_ID}"
+                f"使用已有主车路线：{self.route_id}"
             )
 
         # 插入主车
@@ -1124,7 +1147,7 @@ class IntersectionEnv(gym.Env):
 
             self.connection.vehicle.add(
                 vehID=EGO_ID,
-                routeID=EGO_ROUTE_ID,
+                routeID=self.route_id,
                 typeID=EGO_TYPE_ID,
                 depart="now",
                 departLane="best",
@@ -1144,7 +1167,7 @@ class IntersectionEnv(gym.Env):
             raise RuntimeError(
                 f"主车插入失败："
                 f"vehicle={EGO_ID}, "
-                f"route={EGO_ROUTE_ID}, "
+                f"route={self.route_id}, "
                 f"type={EGO_TYPE_ID}"
             ) from error
 
@@ -1213,7 +1236,13 @@ class IntersectionEnv(gym.Env):
 
         info = {
 
+            "ego_route": self.ego_route,
+            "route_id": self.route_id,
+            "exit_edge": self.exit_edge,
+
             "traffic_density": self.traffic_density,
+
+            "sumo_seed": self.sumo_seed,
 
             "traffic_scale": DENSITY_SCALE[
                 self.traffic_density
@@ -1309,13 +1338,10 @@ class IntersectionEnv(gym.Env):
         # 越线前信号灯状态
         before_tls = self._get_signal_for_ego()
 
-        if before_tls is not None:
-
-            self._cached_signal_before_step = before_tls[2]
-
-        else:
-
-            self._cached_signal_before_step = None
+        self._cached_signal_before_step = before_tls[2]
+        self._cached_tls_link = (
+            (before_tls[0], before_tls[1]) if before_tls[0] is not None else None
+        )
 
         # ----------------------------------------------------
         # 执行动作
@@ -1423,7 +1449,7 @@ class IntersectionEnv(gym.Env):
 
         if ego_present:
 
-            if after_road == "south_out":
+            if after_road == self.exit_edge:
 
                 passed = self.has_entered_junction
 
@@ -1609,10 +1635,16 @@ class IntersectionEnv(gym.Env):
 
         info = {
 
+            "ego_route": self.ego_route,
+            "route_id": self.route_id,
+            "exit_edge": self.exit_edge,
+
             # 基本信息
             "step": self.step_count,
 
             "traffic_density": self.traffic_density,
+
+            "sumo_seed": self.sumo_seed,
 
             "traffic_scale": DENSITY_SCALE[
                 self.traffic_density
