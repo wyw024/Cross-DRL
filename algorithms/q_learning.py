@@ -1,47 +1,29 @@
-
 """
 Tabular Q-learning agent for the SUMO intersection environment.
 """
 
 from pathlib import Path
 import json
-
 import numpy as np
-
 from algorithms.state_discretizer import StateDiscretizer
 
 
 class QLearningAgent:
     """表格型 Q-learning 智能体。"""
 
-    def __init__(
-        self,
-        learning_rate=0.10,
-        gamma=0.99,
-        epsilon=1.0,
-        epsilon_min=0.05,
-        epsilon_decay=0.995,
-        action_count=5,
-        seed=42,
-    ):
+    def __init__(self, learning_rate=0.10, gamma=0.99, epsilon=1.0, epsilon_min=0.05, epsilon_decay=0.995, action_count=5, seed=42):
         self.learning_rate = learning_rate
         self.gamma = gamma
-
         self.epsilon = epsilon
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
-
         self.action_count = action_count
 
         self.rng = np.random.default_rng(seed)
         self.discretizer = StateDiscretizer()
 
         # Q-table：7维离散状态 + 1维动作
-        self.q_table = np.zeros(
-            self.discretizer.get_state_shape() + (self.action_count,),
-            dtype=np.float32,
-        )
-
+        self.q_table = np.zeros(self.discretizer.get_state_shape() + (self.action_count,), dtype=np.float32)
         self.update_count = 0
 
     def select_action(self, observation, info=None, training=False):
@@ -64,21 +46,10 @@ class QLearningAgent:
         q_values = self.q_table[state]
 
         # 多个动作Q值相同时，随机选择其中一个
-        best_actions = np.flatnonzero(
-            np.isclose(q_values, np.max(q_values))
-        )
-
+        best_actions = np.flatnonzero(np.isclose(q_values, np.max(q_values)))
         return int(self.rng.choice(best_actions))
 
-    def learn(
-        self,
-        observation,
-        action,
-        reward,
-        next_observation,
-        terminated,
-        truncated=False,
-    ):
+    def learn(self, observation, action, reward, next_observation, terminated, truncated=False):
         """
         执行一次Q-learning更新。
 
@@ -104,19 +75,12 @@ class QLearningAgent:
             target = float(reward) + self.gamma * next_max_q
 
         # Q-learning 更新公式
-        self.q_table[state + (int(action),)] = (
-            current_q
-            + self.learning_rate * (target - current_q)
-        )
-
+        self.q_table[state + (int(action),)] = current_q + self.learning_rate * (target - current_q)
         self.update_count += 1
 
     def decay_epsilon(self):
         """每轮训练结束后降低探索率。"""
-        self.epsilon = max(
-            self.epsilon_min,
-            self.epsilon * self.epsilon_decay,
-        )
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
     def save(self, path):
         """
@@ -132,11 +96,7 @@ class QLearningAgent:
             path = path.with_suffix(".npz")
 
         path.parent.mkdir(parents=True, exist_ok=True)
-
-        np.savez_compressed(
-            path,
-            q_table=self.q_table,
-        )
+        np.savez_compressed(path, q_table=self.q_table)
 
         metadata = {
             "algorithm": "Q-learning",
@@ -151,7 +111,6 @@ class QLearningAgent:
         }
 
         metadata_path = path.with_suffix(".json")
-
         with open(metadata_path, "w", encoding="utf-8") as file:
             json.dump(metadata, file, indent=4, ensure_ascii=False)
 
@@ -173,16 +132,10 @@ class QLearningAgent:
         with np.load(path) as data:
             loaded_q_table = data["q_table"]
 
-        expected_shape = (
-            self.discretizer.get_state_shape()
-            + (self.action_count,)
-        )
+        expected_shape = self.discretizer.get_state_shape() + (self.action_count,)
 
         if loaded_q_table.shape != expected_shape:
-            raise ValueError(
-                f"Q-table形状不匹配："
-                f"期望 {expected_shape}，实际 {loaded_q_table.shape}"
-            )
+            raise ValueError(f"Q-table形状不匹配：期望 {expected_shape}，实际 {loaded_q_table.shape}")
 
         self.q_table = loaded_q_table.astype(np.float32)
 
