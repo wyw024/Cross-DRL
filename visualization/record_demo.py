@@ -14,7 +14,7 @@ from environment.sumo_env import IntersectionEnv
 from evaluation.safety_log import SafetyLog
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--density', choices=['low', 'medium', 'high'], default='medium')
+parser.add_argument('--density', choices=['low', 'medium', 'high', 'extreme'], default='medium')
 parser.add_argument('--output', default=str(ROOT/'results'/'figures'/'intersection_demo.mp4'))
 args = parser.parse_args()
 output = Path(args.output).resolve()
