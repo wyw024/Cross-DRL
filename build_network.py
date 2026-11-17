@@ -7,7 +7,6 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parent / "environment" / "network"
 
-
 def find_netconvert() -> str:
     found = shutil.which("netconvert")
     if found:
@@ -21,7 +20,6 @@ def find_netconvert() -> str:
             return str(candidate)
     raise FileNotFoundError("找不到 netconvert；请确认 SUMO 已安装并设置 SUMO_HOME。")
 
-
 def main() -> None:
     command = [
         find_netconvert(),
@@ -33,7 +31,6 @@ def main() -> None:
     ]
     subprocess.run(command, check=True, cwd=ROOT)
     print(f"路网已生成：{ROOT / 'network.net.xml'}")
-
 
 if __name__ == "__main__":
     main()
